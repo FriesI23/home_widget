@@ -1,12 +1,14 @@
 import AppIntents
 import Flutter
+import Foundation
 import Intents
-import UIKit
 import WidgetKit
 
-public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
-  FlutterSceneLifeCycleDelegate
-{
+#if os(iOS)
+  import UIKit
+#endif
+
+public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
 
   @available(iOS 17.0, *)
   private static var configurationLookup: [String: any WidgetConfigurationIntent.Type] = [:]
@@ -47,12 +49,6 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     return HomeWidgetPlugin.groupId
   }
 
-  private static func isRunningInAppExtension() -> Bool {
-    let bundleURL = Bundle.main.bundleURL
-    let bundlePathExtension = bundleURL.pathExtension
-    return bundlePathExtension == "appex"
-  }
-
   public static func register(with registrar: FlutterPluginRegistrar) {
     let instance = HomeWidgetPlugin()
 
@@ -63,19 +59,9 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
       name: "home_widget/updates", binaryMessenger: registrar.messenger())
     eventChannel.setStreamHandler(instance)
 
-    guard !isRunningInAppExtension() else {
-      return
-    }
-
-    // Runtime registration avoids compile errors when this module is built for app extensions.
-    let applicationDelegateSelector = NSSelectorFromString("addApplicationDelegate:")
-    if registrar.responds(to: applicationDelegateSelector) {
-      registrar.perform(applicationDelegateSelector, with: instance)
-    }
-    let sceneDelegateSelector = NSSelectorFromString("addSceneDelegate:")
-    if registrar.responds(to: sceneDelegateSelector) {
-      registrar.perform(sceneDelegateSelector, with: instance)
-    }
+    #if os(iOS)
+      registerLifecycleDelegates(instance, with: registrar)
+    #endif
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -418,57 +404,16 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     return nil
   }
 
-  public func application(
-    _ application: UIApplication,
-    didFinishLaunchingWithOptions launchOptions: [AnyHashable: Any] = [:]
-  ) -> Bool {
-    let launchUrl = (launchOptions[UIApplication.LaunchOptionsKey.url] as? NSURL)?.absoluteURL
-    if let launchUrl = launchUrl, isWidgetUrl(url: launchUrl) {
-      initialUrl = launchUrl.absoluteURL
-      latestUrl = initialUrl
-    }
-    return true
-  }
-
-  public func application(
-    _ application: UIApplication, open url: URL,
-    options: [UIApplication.OpenURLOptionsKey: Any] = [:]
-  ) -> Bool {
-    if isWidgetUrl(url: url) {
-      latestUrl = url
-      return true
-    }
-    return false
-  }
-
-  public func scene(
-    _ scene: UIScene,
-    willConnectTo session: UISceneSession,
-    options connectionOptions: UIScene.ConnectionOptions?
-  ) -> Bool {
-    guard let urlContexts = connectionOptions?.urlContexts else {
+  // Lifecycle adapters share URL state without exposing it outside the plugin.
+  private func receiveWidgetUrl(_ url: URL, isInitial: Bool) -> Bool {
+    guard isWidgetUrl(url: url) else {
       return false
     }
-    for context in urlContexts {
-      let url = context.url
-      if isWidgetUrl(url: url) {
-        initialUrl = url
-        latestUrl = url
-        return true
-      }
+    if isInitial {
+      initialUrl = url
     }
-    return false
-  }
-
-  public func scene(_ scene: UIScene, openURLContexts urlContexts: Set<UIOpenURLContext>) -> Bool {
-    for context in urlContexts {
-      let url = context.url
-      if isWidgetUrl(url: url) {
-        latestUrl = url
-        return true
-      }
-    }
-    return false
+    latestUrl = url
+    return true
   }
 
   private func isWidgetUrl(url: URL) -> Bool {
@@ -488,3 +433,71 @@ extension IntentParameter: _AnyIntentParameter {
     return wrappedValue
   }
 }
+
+#if os(iOS)
+  // MARK: - iOS lifecycle
+
+  extension HomeWidgetPlugin: FlutterSceneLifeCycleDelegate {
+    private static func registerLifecycleDelegates(
+      _ instance: HomeWidgetPlugin, with registrar: FlutterPluginRegistrar
+    ) {
+      guard Bundle.main.bundleURL.pathExtension != "appex" else {
+        return
+      }
+
+      // Runtime registration avoids compile errors when this module is built for app extensions.
+      let applicationDelegateSelector = NSSelectorFromString("addApplicationDelegate:")
+      if registrar.responds(to: applicationDelegateSelector) {
+        registrar.perform(applicationDelegateSelector, with: instance)
+      }
+      let sceneDelegateSelector = NSSelectorFromString("addSceneDelegate:")
+      if registrar.responds(to: sceneDelegateSelector) {
+        registrar.perform(sceneDelegateSelector, with: instance)
+      }
+    }
+
+    public func application(
+      _ application: UIApplication,
+      didFinishLaunchingWithOptions launchOptions: [AnyHashable: Any] = [:]
+    ) -> Bool {
+      let launchUrl = (launchOptions[UIApplication.LaunchOptionsKey.url] as? NSURL)?.absoluteURL
+      if let launchUrl = launchUrl {
+        _ = receiveWidgetUrl(launchUrl.absoluteURL, isInitial: true)
+      }
+      return true
+    }
+
+    public func application(
+      _ application: UIApplication, open url: URL,
+      options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+    ) -> Bool {
+      return receiveWidgetUrl(url, isInitial: false)
+    }
+
+    public func scene(
+      _ scene: UIScene,
+      willConnectTo session: UISceneSession,
+      options connectionOptions: UIScene.ConnectionOptions?
+    ) -> Bool {
+      guard let urlContexts = connectionOptions?.urlContexts else {
+        return false
+      }
+      for context in urlContexts {
+        if receiveWidgetUrl(context.url, isInitial: true) {
+          return true
+        }
+      }
+      return false
+    }
+
+    public func scene(_ scene: UIScene, openURLContexts urlContexts: Set<UIOpenURLContext>) -> Bool
+    {
+      for context in urlContexts {
+        if receiveWidgetUrl(context.url, isInitial: false) {
+          return true
+        }
+      }
+      return false
+    }
+  }
+#endif

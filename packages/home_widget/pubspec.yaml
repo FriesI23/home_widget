@@ -45,3 +45,4 @@ flutter:
         pluginClass: HomeWidgetPlugin
       ios:
         pluginClass: HomeWidgetPlugin
+        sharedDarwinSource: true
