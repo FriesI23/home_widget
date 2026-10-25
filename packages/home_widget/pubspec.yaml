@@ -46,3 +46,6 @@ flutter:
       ios:
         pluginClass: HomeWidgetPlugin
         sharedDarwinSource: true
+      macos:
+        pluginClass: HomeWidgetPlugin
+        sharedDarwinSource: true

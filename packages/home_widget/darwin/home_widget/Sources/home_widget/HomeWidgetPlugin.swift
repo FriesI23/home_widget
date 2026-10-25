@@ -1,19 +1,21 @@
 import AppIntents
-import Flutter
 import Foundation
 import Intents
 import WidgetKit
 
 #if os(iOS)
+  import Flutter
   import UIKit
+#elseif os(macOS)
+  import FlutterMacOS
 #endif
 
 public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
 
-  @available(iOS 17.0, *)
+  @available(iOS 17.0, macOS 14.0, *)
   private static var configurationLookup: [String: any WidgetConfigurationIntent.Type] = [:]
 
-  @available(iOS 17.0, *)
+  @available(iOS 17.0, macOS 14.0, *)
   public static func setConfigurationLookup(
     to configuration: [String: any WidgetConfigurationIntent.Type]
   ) {
@@ -52,19 +54,32 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   public static func register(with registrar: FlutterPluginRegistrar) {
     let instance = HomeWidgetPlugin()
 
-    let channel = FlutterMethodChannel(name: "home_widget", binaryMessenger: registrar.messenger())
+    #if os(iOS)
+      let messenger = registrar.messenger()
+    #elseif os(macOS)
+      let messenger = registrar.messenger
+    #endif
+    let channel = FlutterMethodChannel(name: "home_widget", binaryMessenger: messenger)
     registrar.addMethodCallDelegate(instance, channel: channel)
 
-    let eventChannel = FlutterEventChannel(
-      name: "home_widget/updates", binaryMessenger: registrar.messenger())
-    eventChannel.setStreamHandler(instance)
-
     #if os(iOS)
+      let eventChannel = FlutterEventChannel(
+        name: "home_widget/updates", binaryMessenger: messenger)
+      eventChannel.setStreamHandler(instance)
       registerLifecycleDelegates(instance, with: registrar)
     #endif
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    #if os(iOS)
+      handleSharedCall(call, result: result)
+    #elseif os(macOS)
+      // The shared module is buildable before macOS capabilities are connected.
+      result(FlutterMethodNotImplemented)
+    #endif
+  }
+
+  private func handleSharedCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     if call.method == "setAppGroupId" {
       guard let args = call.arguments else {
         return
@@ -197,25 +212,29 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         result(notInitializedError)
         return
       }
-      if #available(iOS 17.0, *) {
-        let callbackHandles = call.arguments as! [Int64]
-        let dispatcher = callbackHandles[0]
-        let callback = callbackHandles[1]
-        let preferences = UserDefaults.init(suiteName: HomeWidgetPlugin.groupId)
-        preferences?.setValue(dispatcher, forKey: HomeWidgetBackgroundWorker.dispatcherKey)
-        preferences?.setValue(callback, forKey: HomeWidgetBackgroundWorker.callbackKey)
-        HomeWidgetBackgroundWorker.setupEngine(dispatcher: dispatcher)
+      #if os(iOS)
+        if #available(iOS 17.0, *) {
+          let callbackHandles = call.arguments as! [Int64]
+          let dispatcher = callbackHandles[0]
+          let callback = callbackHandles[1]
+          let preferences = UserDefaults.init(suiteName: HomeWidgetPlugin.groupId)
+          preferences?.setValue(dispatcher, forKey: HomeWidgetBackgroundWorker.dispatcherKey)
+          preferences?.setValue(callback, forKey: HomeWidgetBackgroundWorker.callbackKey)
+          HomeWidgetBackgroundWorker.setupEngine(dispatcher: dispatcher)
 
-        result(true)
-        return
-      } else {
-        result(
-          FlutterError(
-            code: "-5",
-            message:
-              "Interactivity is only available on iOS 17.0",
-            details: nil))
-      }
+          result(true)
+          return
+        } else {
+          result(
+            FlutterError(
+              code: "-5",
+              message:
+                "Interactivity is only available on iOS 17.0",
+              details: nil))
+        }
+      #else
+        result(FlutterMethodNotImplemented)
+      #endif
     } else if call.method == "isRequestPinWidgetSupported" {
       result(false)
     } else if call.method == "requestPinWidget" {
@@ -236,7 +255,7 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                 var intent: Any?
                 if widget.configuration != nil {
                   intent = widget.configuration
-                } else if #available(iOS 17.0, *),
+                } else if #available(iOS 17.0, macOS 14.0, *),
                   let intentType = HomeWidgetPlugin.configurationLookup[widget.kind]
                 {
                   intent = widget.widgetConfigurationIntent(of: intentType)
@@ -246,7 +265,7 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                 if let intent = intent {
 
                   var intentData: [String: Any?] = [:]
-                  if #available(iOS 17.0, *),
+                  if #available(iOS 17.0, macOS 14.0, *),
                     let configurationIntent = intent as? (any WidgetConfigurationIntent)
                   {
                     let mirror = Mirror(reflecting: configurationIntent)
@@ -427,7 +446,7 @@ protocol _AnyIntentParameter {
   var anyWrappedValue: Any { get }
 }
 
-@available(iOS 16.0, *)
+@available(iOS 16.0, macOS 13.0, *)
 extension IntentParameter: _AnyIntentParameter {
   var anyWrappedValue: Any {
     return wrappedValue
