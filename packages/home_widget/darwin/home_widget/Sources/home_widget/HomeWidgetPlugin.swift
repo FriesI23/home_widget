@@ -25,6 +25,10 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
 
   private static var groupId: String?
 
+  #if os(macOS)
+    private var macOSLaunching = false
+  #endif
+
   private var initialUrl: URL?
   private var latestUrl: URL? {
     didSet {
@@ -107,7 +111,7 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
       // Connect capabilities in reviewable batches; do not report unsupported calls as success.
       switch call.method {
       case "setAppGroupId", "saveWidgetData", "getWidgetData", "getWidgetContainerPath",
-        "getInstalledWidgets":
+        "getInstalledWidgets", "initiallyLaunchedFromHomeWidget":
         handleSharedCall(call, result: result)
       case "updateWidget", "updateWidgetPreview", "scheduleWidgetUpdates",
         "cancelScheduledWidgetUpdates", "canScheduleExactWidgetUpdates",
@@ -586,6 +590,26 @@ extension IntentParameter: _AnyIntentParameter {
       }
 
       registrar.addApplicationDelegate(instance)
+    }
+
+    public func handleWillFinishLaunching(_ notification: Notification) {
+      macOSLaunching = true
+    }
+
+    public func handleDidFinishLaunching(_ notification: Notification) {
+      macOSLaunching = false
+    }
+
+    public func handleOpen(_ urls: [URL]) -> Bool {
+      guard !urls.isEmpty else { return false }
+      let isInitial = macOSLaunching
+      var handled = false
+      for url in urls {
+        if receiveWidgetUrl(url, isInitial: isInitial && initialUrl == nil) {
+          handled = true
+        }
+      }
+      return handled
     }
   }
 #endif

@@ -9,8 +9,8 @@ The dedicated macOS entry starts without Workmanager or calls to plugin APIs
 that have not yet been connected on macOS. The macOS Xcode configurations select
 the same entry; keep `--target lib/main_macos.dart` when using Flutter CLI tools.
 The embedded `HomeWidgetExampleExtension` displays shared PNG images and Flutter
-screenshots and can query installed widget configurations. URLs and interactive
-callbacks are connected separately.
+screenshots, queries installed widget configurations, and handles Widget URLs.
+Interactive callbacks are connected separately.
 
 Open `macos/Runner.xcworkspace` in Xcode and select your signing team for the
 Runner and HomeWidgetExampleExtension targets. Use your own matching bundle
@@ -71,8 +71,8 @@ Android-only APIs keep the iOS compatibility results on macOS: preview updates,
 scheduling/cancellation/exact-scheduling checks and pin-support checks return
 `false`; pin requests, configure-launch queries and configure completion return
 null (the `Future<void>` calls simply complete). They do not emulate Android
-launcher behavior on macOS. URLs and background callbacks remain separate
-integration steps.
+launcher behavior on macOS. Background callbacks remain a separate integration
+step.
 
 Select **Read widget configurations** to query WidgetKit without requiring an
 App Group. Results use the existing `HomeWidgetInfo.iOSKind` and `iOSFamily`
@@ -97,6 +97,27 @@ lookup type on macOS 14 / iOS 17 and later. If no matching type is registered,
 the row still includes kind and family, with no fabricated configuration.
 Existing configuration value conversion is shared with iOS; this does not add
 recursive conversion for arbitrary native values or start a background engine.
+
+Click the macOS widget to open `homewidget-macos://widget?homeWidget` in the
+host. The app shows the cached initial URI, latest URI, and event count. Running
+clicks leave the initial URI unchanged; repeated clicks each produce an event.
+URLs use the existing case-sensitive `homeWidget` query marker. No App Group is
+needed for URL routing.
+
+Retain the [AppDelegate](macos/Runner/AppDelegate.swift) startup forwarding if
+adapting the host. It records URL batches and launch notifications until the
+primary HomeWidget plugin is registered, then replays startup in order to that
+plugin. Other URLs continue through Flutter's normal delegates individually,
+so a mixed batch does not hide them. Keep your own application routing there
+as needed. The standard generated plugin registration stays in place.
+
+Subscribe to `HomeWidget.widgetClicked` early and query
+`HomeWidget.initiallyLaunchedFromHomeWidget()` for an already delivered launch
+URI. Initial queries are non-consuming. Listening later does not replay missed
+events; the example also rechecks the initial URI on each live event. If you
+change the URL scheme, update both the host's `CFBundleURLTypes` and the
+Widget's `widgetURL`. URL routing does not prove background execution or
+behavior after every app-termination scenario.
 
 The host uses Flutter's macOS 12 deployment target; the Widget target is declared
 for macOS 11. Flutter 3.47.8 raises the Widget build target to macOS 12 during

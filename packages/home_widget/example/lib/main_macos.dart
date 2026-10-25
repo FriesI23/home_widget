@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -71,12 +72,35 @@ class _MacOSExampleState extends State<MacOSExample> {
   String? _token;
   String? _error;
   List<HomeWidgetInfo>? _widgets;
+  StreamSubscription<Uri?>? _urlSubscription;
+  String? _initialUrl;
+  String? _latestUrl;
+  int _urlEvents = 0;
   bool _busy = true;
 
   @override
   void initState() {
     super.initState();
+    _urlSubscription = HomeWidget.widgetClicked.listen((url) {
+      if (!mounted || url == null) return;
+      setState(() {
+        _latestUrl = url.toString();
+        _urlEvents++;
+      });
+      unawaited(_readInitialUrl());
+    });
     _initialize();
+  }
+
+  @override
+  void dispose() {
+    _urlSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _readInitialUrl() async {
+    final url = await HomeWidget.initiallyLaunchedFromHomeWidget();
+    if (mounted) setState(() => _initialUrl = url?.toString());
   }
 
   Future<void> _readImages() async {
@@ -103,6 +127,7 @@ class _MacOSExampleState extends State<MacOSExample> {
 
   Future<void> _initialize() async {
     try {
+      await _readInitialUrl();
       _group = await _configuration.invokeMethod<String>('appGroupId');
       if (_group != null) {
         await HomeWidget.setAppGroupId(_group!);
@@ -192,6 +217,9 @@ class _MacOSExampleState extends State<MacOSExample> {
                     onPressed: _busy ? null : _readWidgets,
                     child: const Text('Read widget configurations'),
                   ),
+                  Text('Initial widget URI: ${_initialUrl ?? 'none'}'),
+                  Text('Latest widget URI: ${_latestUrl ?? 'none'}'),
+                  Text('URL events: $_urlEvents'),
                   if (_widgets case final widgets?) ...[
                     if (widgets.isEmpty) const Text('No widget configurations'),
                     for (final widget in widgets)

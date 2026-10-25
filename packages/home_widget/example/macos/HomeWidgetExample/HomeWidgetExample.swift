@@ -74,6 +74,7 @@ private struct HomeWidgetView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    .widgetURL(URL(string: "homewidget-macos://widget?homeWidget"))
   }
 }
 

@@ -271,7 +271,11 @@ class HomeWidget {
     return _channel.invokeMethod('setAppGroupId', {'groupId': groupId});
   }
 
-  /// Checks if the App was initially launched via the Widget
+  /// Returns the cached Widget URI that started the app, if already delivered.
+  ///
+  /// On macOS, retain the example AppDelegate startup forwarding when adapting
+  /// a custom host or registering plugins late. Repeated queries do not consume
+  /// the URI; running clicks do not replace it.
   static Future<Uri?> initiallyLaunchedFromHomeWidget() {
     return _channel
         .invokeMethod<String>('initiallyLaunchedFromHomeWidget')
@@ -292,7 +296,9 @@ class HomeWidget {
     return _channel.invokeMethod<void>('finishHomeWidgetConfigure');
   }
 
-  /// Receives Updates if App Launched via the Widget
+  /// Receives Widget URI events while listening, including repeated clicks.
+  /// Listening does not replay events; query [initiallyLaunchedFromHomeWidget]
+  /// for a cached launch URI after late subscription.
   static Stream<Uri?> get widgetClicked {
     return _eventChannel.receiveBroadcastStream().map<Uri?>(
       _handleReceivedData,
