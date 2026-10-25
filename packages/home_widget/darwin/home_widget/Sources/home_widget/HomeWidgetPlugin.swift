@@ -108,6 +108,11 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
       switch call.method {
       case "setAppGroupId", "saveWidgetData", "getWidgetData", "getWidgetContainerPath":
         handleSharedCall(call, result: result)
+      case "updateWidget", "updateWidgetPreview", "scheduleWidgetUpdates",
+        "cancelScheduledWidgetUpdates", "canScheduleExactWidgetUpdates",
+        "isRequestPinWidgetSupported",
+        "requestPinWidget", "initiallyLaunchedFromHomeWidgetConfigure", "finishHomeWidgetConfigure":
+        handleSharedCall(call, result: result)
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -203,10 +208,7 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
       }
     } else if call.method == "updateWidget" {
 
-      guard let args = call.arguments else {
-        return
-      }
-      if let myArgs = args as? [String: Any?] {
+      if let myArgs = call.arguments as? [String: Any?] {
         // Check ios first, then fall back to name
         // Handle NSNull explicitly since nil-coalescing doesn't work with NSNull
         let iosValue = myArgs["ios"]
@@ -222,15 +224,13 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         }
 
         if let name = widgetName {
-          if #available(iOS 14.0, *) {
-            #if arch(arm64) || arch(i386) || arch(x86_64)
-              WidgetCenter.shared.reloadTimelines(ofKind: name)
-              result(true)
-            #endif
+          if #available(iOS 14.0, macOS 11.0, *) {
+            WidgetCenter.shared.reloadTimelines(ofKind: name)
+            result(true)
           } else {
             result(
               FlutterError(
-                code: "-4", message: "Widgets are only available on iOS 14.0 and above",
+                code: "-4", message: "Widgets require iOS 14.0 or macOS 11.0 and above",
                 details: nil)
             )
           }

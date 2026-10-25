@@ -181,6 +181,28 @@ class RunnerTests: XCTestCase {
     wait(for: [completed], timeout: 10)
   }
 
+  func testWidgetRefreshNamesAndMalformedArgumentsCompleteOnce() {
+    let plugin = HomeWidgetPlugin()
+    let kind = "HomeWidgetRefreshTests.\(UUID().uuidString)"
+    let invalid: [Any?] = [
+      nil, NSNull(), [], [:], ["ios": NSNull()], ["ios": 42, "name": false],
+    ]
+    for arguments in invalid {
+      let error = invoke("updateWidget", arguments: arguments, on: plugin) as? FlutterError
+      XCTAssertEqual(error?.code, "-3")
+    }
+    let valid: [[String: Any]] = [
+      ["ios": kind, "name": "ignored"],
+      ["ios": NSNull(), "name": kind],
+      ["ios": 42, "name": kind],
+      ["name": kind],
+      ["ios": "", "name": kind],
+    ]
+    for arguments in valid {
+      XCTAssertEqual(invoke("updateWidget", arguments: arguments, on: plugin) as? Bool, true)
+    }
+  }
+
   func testUnsupportedMethodsKeepIOSReturnValues() {
     let plugin = HomeWidgetPlugin()
     for method in [

@@ -51,11 +51,13 @@ class HomeWidget {
   /// Updates the HomeScreen Widget
   ///
   /// Android Widgets will look for [qualifiedAndroidName] then [androidName] and then for [name]
-  /// iOS Widgets will look for [iOSName] and then for [name]
+  /// iOS and macOS Widgets look for [iOSName] and then [name].
   ///
   /// [qualifiedAndroidName] will use the name as is to find the WidgetProvider
   /// [androidName] must match the classname of the WidgetProvider, prefixed by the package name
-  /// The name of the iOS Widget must match the kind specified when creating the Widget
+  /// On iOS and macOS the name must match the Widget kind. [iOSName] remains
+  /// a supported alias on both platforms. A `true` result means a refresh was
+  /// requested; WidgetKit decides when to render the new timeline.
   static Future<bool?> updateWidget({
     String? name,
     String? androidName,
@@ -82,10 +84,10 @@ class HomeWidget {
   /// twice per hour and Widget), below Android 15, and when the resolved
   /// provider is not a Glance Widget.
   ///
-  /// On iOS this does nothing and returns `false`, whatever it is passed:
+  /// On iOS and macOS this does nothing and returns `false`, whatever it is passed:
   /// WidgetKit renders the gallery preview itself by calling the Widget's
   /// `getSnapshot` with `context.isPreview` set, so there is no preview for the
-  /// plugin to push and no iOS Widget to name.
+  /// plugin to push and no iOS or macOS Widget to name.
   ///
   /// Android Widgets will look for [qualifiedAndroidName] then [androidName] and then for [name]
   ///
@@ -112,7 +114,7 @@ class HomeWidget {
   /// This is Android only. There the plugin uses `AlarmManager` to broadcast a
   /// Widget update at each of the given times, and returns `true`.
   ///
-  /// On iOS this does nothing and returns `false`. A WidgetKit Widget decides
+  /// On iOS and macOS this does nothing and returns `false`. A WidgetKit Widget decides
   /// for itself when its content changes by returning future `TimelineEntry`s
   /// from its `TimelineProvider`, so there is no schedule for the plugin to
   /// keep. Write the times into the Widget's data with [saveWidgetData] (or
@@ -169,7 +171,7 @@ class HomeWidget {
 
   /// Cancels all updates scheduled with [scheduleWidgetUpdates]
   ///
-  /// This is Android only and returns `true` there. On iOS nothing was ever
+  /// This is Android only and returns `true` there. On iOS and macOS nothing was ever
   /// scheduled, so this does nothing and returns `false`.
   ///
   /// Android Widgets will look for [qualifiedAndroidName] then [androidName] and then for [name]
@@ -194,7 +196,7 @@ class HomeWidget {
 
   /// Whether [scheduleWidgetUpdates] can schedule *exact* updates
   ///
-  /// On iOS this is always `false`: [scheduleWidgetUpdates] schedules nothing
+  /// On iOS and macOS this is always `false`: [scheduleWidgetUpdates] schedules nothing
   /// there, and WidgetKit renders a Widget's own timeline entries on a best
   /// effort basis, so it may show them later than their date.
   ///
@@ -224,7 +226,7 @@ class HomeWidget {
   /// This is supported only on some Android Launchers and only with Android API 26+
   ///
   /// Android Widgets will look for [qualifiedAndroidName] then [androidName] and then for [name]
-  /// There is no iOS alternative.
+  /// There is no iOS or macOS alternative.
   ///
   /// [qualifiedAndroidName] will use the name as is to find the WidgetProvider.
   /// [androidName] must match the classname of the WidgetProvider, prefixed by the package name.

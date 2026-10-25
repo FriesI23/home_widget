@@ -9,8 +9,8 @@ The dedicated macOS entry starts without Workmanager or calls to plugin APIs
 that have not yet been connected on macOS. The macOS Xcode configurations select
 the same entry; keep `--target lib/main_macos.dart` when using Flutter CLI tools.
 The embedded `HomeWidgetExampleExtension` displays shared PNG images and Flutter
-screenshots. Configuration, URLs, refresh calls, and interactive callbacks are
-connected separately.
+screenshots. Configuration, URLs, and interactive callbacks are connected
+separately.
 
 Open `macos/Runner.xcworkspace` in Xcode and select your signing team for the
 Runner and HomeWidgetExampleExtension targets. Use your own matching bundle
@@ -22,13 +22,15 @@ entitlements and the Widget Extension's entitlements. The demo selects the first
 signed App Group in each process, so use just one group in this example; no
 personal team or group identifier is stored in the public project.
 
-Launch the signed app and select **Save images**. It shows a blue image with an
+Launch the signed app and select **Save and refresh**. It shows a blue image with an
 orange circle and a teal Flutter screenshot. Then add **HomeWidget macOS** from
 Notification Center or, on macOS 14 and later, the desktop widget gallery. The
 widget displays the same images and token. Reopen the app to restore its saved
 previews. The provider reads persisted paths on snapshot/timeline creation.
-Until refresh support is connected, remove and add the widget after changing
-images; this step does not call the unfinished plugin refresh API.
+Saving calls `HomeWidget.updateWidget(name: 'HomeWidgetMacOSExample')` after the
+image paths and token have been written. You can update the existing widget
+without removing it. WidgetKit schedules the actual refresh; a successful
+request does not promise an immediate redraw.
 
 The macOS plugin supports `setAppGroupId`, `saveWidgetData`, and `getWidgetData`.
 To share data, add the same App Group to the host and Widget Extension's signing
@@ -59,6 +61,18 @@ ViewController. An engine without an implicit Dart view receives an explicit
 error. This is separate from background callback execution and app-termination
 support; file sharing does not depend on screenshot rendering. The output is a PNG, not a live Flutter widget embedded in
 WidgetKit.
+
+For `updateWidget`, iOS and macOS both use the string `iOSName` alias first,
+then `name`. Null or non-string aliases fall back to `name`; the value is the
+Widget kind, not its Swift type or bundle identifier. Invalid arguments fail
+with code `-3`. The existing empty-string behavior is preserved.
+
+Android-only APIs keep the iOS compatibility results on macOS: preview updates,
+scheduling/cancellation/exact-scheduling checks and pin-support checks return
+`false`; pin requests, configure-launch queries and configure completion return
+null (the `Future<void>` calls simply complete). They do not emulate Android
+launcher behavior on macOS. Widget configuration, URLs and background callbacks
+remain separate integration steps.
 
 The host uses Flutter's macOS 12 deployment target; the Widget target is declared
 for macOS 11. Flutter 3.47.8 raises the Widget build target to macOS 12 during

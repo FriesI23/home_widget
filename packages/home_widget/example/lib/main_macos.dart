@@ -52,6 +52,7 @@ Future<String> saveMacOSExampleImages(String group) async {
   );
   final token = 'C2-${DateTime.now().millisecondsSinceEpoch}';
   await HomeWidget.saveWidgetData('example_token', token, appGroupId: group);
+  await HomeWidget.updateWidget(name: 'HomeWidgetMacOSExample');
   return token;
 }
 
@@ -168,12 +169,13 @@ class _MacOSExampleState extends State<MacOSExample> {
                   ),
                 FilledButton(
                   onPressed: _busy || _group == null ? null : _save,
-                  child: Text(_busy ? 'Loading…' : 'Save images'),
+                  child: Text(_busy ? 'Loading…' : 'Save and refresh'),
                 ),
                 const SizedBox(height: 8),
                 const Text(
                   'Save images, then add HomeWidget macOS from your Mac’s '
-                  'widget gallery. Reopen the app to restore saved previews.',
+                  'widget gallery. WidgetKit schedules refreshes after saving. '
+                  'Reopen the app to restore saved previews.',
                   textAlign: TextAlign.center,
                 ),
               ],
