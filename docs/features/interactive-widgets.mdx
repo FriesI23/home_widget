@@ -39,9 +39,14 @@ target 'YourWidgetExtension' do
    use_frameworks!
    use_modular_headers!
 
-   pod 'home_widget', :path => '.symlinks/plugins/home_widget/ios'
+   pod 'home_widget', :path => '.symlinks/plugins/home_widget/darwin'
 end
 ```
+
+The plugin's native source is now in `darwin/`. If your Podfile uses the older
+`.symlinks/plugins/home_widget/ios` path, replace it with the path above, then run
+`flutter pub get` from your app's root directory, followed by `pod install` from
+its `ios/` directory.
 
 ### Swift Package Manager
 
