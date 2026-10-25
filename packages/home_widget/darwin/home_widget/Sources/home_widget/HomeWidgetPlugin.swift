@@ -52,7 +52,7 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     return HomeWidgetPlugin.groupId
   }
 
-  private func widgetPreferences(for appGroupId: String, result: FlutterResult) -> UserDefaults? {
+  private func isAppGroupAuthorized(_ appGroupId: String, result: FlutterResult) -> Bool {
     #if os(macOS)
       // A suite can be created even when the process cannot access the shared group.
       guard let task = SecTaskCreateFromSelf(nil),
@@ -64,9 +64,16 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
           FlutterError(
             code: "-9", message: "App Group is not authorized by this process's entitlement",
             details: appGroupId))
-        return nil
+        return false
       }
     #endif
+    return true
+  }
+
+  private func widgetPreferences(for appGroupId: String, result: FlutterResult) -> UserDefaults? {
+    guard isAppGroupAuthorized(appGroupId, result: result) else {
+      return nil
+    }
     guard let preferences = UserDefaults(suiteName: appGroupId) else {
       result(
         FlutterError(
@@ -99,7 +106,7 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     #elseif os(macOS)
       // Connect capabilities in reviewable batches; do not report unsupported calls as success.
       switch call.method {
-      case "setAppGroupId", "saveWidgetData", "getWidgetData":
+      case "setAppGroupId", "saveWidgetData", "getWidgetData", "getWidgetContainerPath":
         handleSharedCall(call, result: result)
       default:
         result(FlutterMethodNotImplemented)
@@ -120,6 +127,24 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             code: "-6", message: "InvalidArguments setAppGroupId must be called with a group id",
             details: nil))
       }
+    } else if call.method == "getWidgetContainerPath" {
+      guard let resolvedGroupId = resolvedAppGroupId(from: call) else {
+        result(notInitializedError)
+        return
+      }
+      guard isAppGroupAuthorized(resolvedGroupId, result: result) else {
+        return
+      }
+      guard
+        let container = FileManager.default.containerURL(
+          forSecurityApplicationGroupIdentifier: resolvedGroupId)
+      else {
+        result(
+          FlutterError(
+            code: "-10", message: "App Group container is unavailable", details: resolvedGroupId))
+        return
+      }
+      result(container.path)
     } else if call.method == "saveWidgetData" {
       guard let resolvedGroupId = resolvedAppGroupId(from: call) else {
         result(notInitializedError)

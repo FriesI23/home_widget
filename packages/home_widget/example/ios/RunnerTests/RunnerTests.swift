@@ -132,6 +132,33 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(UserDefaults(suiteName: group)?.string(forKey: "value"), "keep")
   }
 
+  func testWidgetContainerPathUsesDefaultAndPerCallGroups() {
+    let plugin = HomeWidgetPlugin()
+    let defaultGroup = "group.homewidget.tests.\(UUID().uuidString)"
+    let otherGroup = "group.homewidget.tests.\(UUID().uuidString)"
+    XCTAssertEqual(
+      invoke("setAppGroupId", arguments: ["groupId": defaultGroup], on: plugin) as? Bool, true)
+    for (arguments, group) in [
+      (nil as Any?, defaultGroup),
+      (["appGroupId": otherGroup], otherGroup),
+      (["appGroupId": NSNull()], defaultGroup),
+    ] {
+      let value = invoke("getWidgetContainerPath", arguments: arguments, on: plugin)
+      if let container = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier: group)
+      {
+        XCTAssertEqual(value as? String, container.path)
+      } else {
+        let error = value as? FlutterError
+        XCTAssertEqual(error?.code, "-10")
+        XCTAssertEqual(error?.details as? String, group)
+      }
+    }
+    XCTAssertEqual(
+      invoke("getWidgetContainerPath", on: plugin) as? String,
+      FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: defaultGroup)?.path)
+  }
+
   func testInstalledWidgetQueryCompletesWithChannelEncodableRows() {
     let completed = expectation(description: "WidgetKit configurations")
     completed.assertForOverFulfill = true

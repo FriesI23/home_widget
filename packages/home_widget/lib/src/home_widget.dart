@@ -8,7 +8,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:path_provider_foundation/path_provider_foundation.dart';
 
 /// A Flutter Plugin to simplify setting up and communicating with HomeScreenWidgets
 class HomeWidget {
@@ -379,9 +378,11 @@ class HomeWidget {
   /// Writes [bytes] to the shared widget storage area and stores the absolute
   /// file path under [key] via [saveWidgetData] (same as [renderFlutterWidget]).
   ///
-  /// On iOS the file is written under the app group container; on Android under
-  /// the application support directory. In both cases the path is
+  /// On iOS and macOS the file is written under the app group container;
+  /// on Android under the application support directory. The path is
   /// `{container}/home_widget/{key}.{extension}`.
+  /// [appGroupId] overrides the default group on iOS and macOS. An unavailable
+  /// container or a file write failure throws; private storage is not a fallback.
   static Future<String> saveFile(
     String key,
     Uint8List bytes, {
@@ -393,26 +394,19 @@ class HomeWidget {
 
     try {
       late final String? directory;
-      // coverage:ignore-start
-      if (Platform.isIOS) {
-        final PathProviderFoundation provider = PathProviderFoundation();
-        final resolvedGroupId = appGroupId ?? HomeWidget.groupId;
-        assert(
-          resolvedGroupId != null,
-          'No groupId defined. Did you forget to call `HomeWidget.setAppGroupId`',
-        );
-        directory = await provider.getContainerPath(
-          appGroupIdentifier: resolvedGroupId!,
+      if (Platform.isIOS || Platform.isMacOS) {
+        directory = await _channel.invokeMethod<String>(
+          'getWidgetContainerPath',
+          {if (appGroupId != null) 'appGroupId': appGroupId},
         );
 
-        if (directory == null) {
+        if (directory == null || directory.isEmpty) {
           throw StateError(
-            'Widget storage directory is null for group "$resolvedGroupId". '
+            'Widget storage directory is unavailable. '
             'Verify App Group configuration and HomeWidget.setAppGroupId.',
           );
         }
       } else {
-        // coverage:ignore-end
         directory = (await getApplicationSupportDirectory()).path;
       }
 
@@ -491,6 +485,7 @@ class HomeWidget {
   ///
   /// This method can throw in case the widget could not be converted to an
   /// image or if the image could not be saved to a file.
+  /// A Dart Flutter view is required; engines without one fail explicitly.
   static Future<String> renderFlutterWidget(
     Widget widget, {
     required String key,
@@ -498,8 +493,14 @@ class HomeWidget {
     double? pixelRatio,
     String? appGroupId,
   }) async {
-    pixelRatio ??=
-        PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 1;
+    final view = ui.PlatformDispatcher.instance.implicitView;
+    if (view == null) {
+      throw Exception(
+        'Failed to render the widget: a Flutter view is required. '
+        'Headless screenshot rendering is not supported.',
+      );
+    }
+    pixelRatio ??= view.devicePixelRatio;
 
     /// finding the widget in the current context by the key.
     final RenderRepaintBoundary repaintBoundary = RenderRepaintBoundary();
@@ -512,7 +513,7 @@ class HomeWidget {
 
     try {
       final RenderView renderView = RenderView(
-        view: ui.PlatformDispatcher.instance.implicitView!,
+        view: view,
         child: RenderPositionedBox(
           alignment: Alignment.center,
           child: repaintBoundary,
