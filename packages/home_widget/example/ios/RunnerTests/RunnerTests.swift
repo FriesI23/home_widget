@@ -100,6 +100,38 @@ class RunnerTests: XCTestCase {
     }
   }
 
+  func testMissingAppGroupArgumentsCompleteWithExistingError() {
+    let plugin = HomeWidgetPlugin()
+    let inputs: [Any?] = [nil, NSNull(), [:] as [String: Any]]
+    for arguments in inputs {
+      let error = invoke("setAppGroupId", arguments: arguments, on: plugin) as? FlutterError
+      XCTAssertEqual(error?.code, "-6")
+    }
+  }
+
+  func testMissingStorageArgumentsCompleteAndInvalidDataKeepsExistingValue() {
+    let plugin = HomeWidgetPlugin()
+    let group = isolatedSuite()
+    XCTAssertEqual(
+      invoke("setAppGroupId", arguments: ["groupId": group], on: plugin) as? Bool, true)
+    let inputs: [Any?] = [nil, NSNull(), [], [:] as [String: Any]]
+    for (method, code) in [("saveWidgetData", "-1"), ("getWidgetData", "-2")] {
+      for arguments in inputs {
+        XCTAssertEqual(
+          (invoke(method, arguments: arguments, on: plugin) as? FlutterError)?.code, code)
+      }
+    }
+    XCTAssertEqual(
+      invoke("saveWidgetData", arguments: ["id": "value", "data": "keep"], on: plugin) as? Bool,
+      true)
+    let error =
+      invoke(
+        "saveWidgetData", arguments: ["id": "value", "data": ["nested": NSNull()]], on: plugin)
+      as? FlutterError
+    XCTAssertEqual(error?.code, "-1")
+    XCTAssertEqual(UserDefaults(suiteName: group)?.string(forKey: "value"), "keep")
+  }
+
   func testInstalledWidgetQueryCompletesWithChannelEncodableRows() {
     let completed = expectation(description: "WidgetKit configurations")
     completed.assertForOverFulfill = true

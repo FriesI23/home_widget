@@ -8,6 +8,7 @@ import WidgetKit
   import UIKit
 #elseif os(macOS)
   import FlutterMacOS
+  import Security
 #endif
 
 public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
@@ -51,6 +52,30 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     return HomeWidgetPlugin.groupId
   }
 
+  private func widgetPreferences(for appGroupId: String, result: FlutterResult) -> UserDefaults? {
+    #if os(macOS)
+      // A suite can be created even when the process cannot access the shared group.
+      guard let task = SecTaskCreateFromSelf(nil),
+        let groups = SecTaskCopyValueForEntitlement(
+          task, "com.apple.security.application-groups" as CFString, nil) as? [String],
+        groups.contains(appGroupId)
+      else {
+        result(
+          FlutterError(
+            code: "-9", message: "App Group is not authorized by this process's entitlement",
+            details: appGroupId))
+        return nil
+      }
+    #endif
+    guard let preferences = UserDefaults(suiteName: appGroupId) else {
+      result(
+        FlutterError(
+          code: "-9", message: "App Group preferences are unavailable", details: appGroupId))
+      return nil
+    }
+    return preferences
+  }
+
   public static func register(with registrar: FlutterPluginRegistrar) {
     let instance = HomeWidgetPlugin()
 
@@ -62,29 +87,29 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     let channel = FlutterMethodChannel(name: "home_widget", binaryMessenger: messenger)
     registrar.addMethodCallDelegate(instance, channel: channel)
 
-    #if os(iOS)
-      let eventChannel = FlutterEventChannel(
-        name: "home_widget/updates", binaryMessenger: messenger)
-      eventChannel.setStreamHandler(instance)
-      registerLifecycleDelegates(instance, with: registrar)
-    #endif
+    let eventChannel = FlutterEventChannel(
+      name: "home_widget/updates", binaryMessenger: messenger)
+    eventChannel.setStreamHandler(instance)
+    registerLifecycleDelegates(instance, with: registrar)
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     #if os(iOS)
       handleSharedCall(call, result: result)
     #elseif os(macOS)
-      // The shared module is buildable before macOS capabilities are connected.
-      result(FlutterMethodNotImplemented)
+      // Connect capabilities in reviewable batches; do not report unsupported calls as success.
+      switch call.method {
+      case "setAppGroupId", "saveWidgetData", "getWidgetData":
+        handleSharedCall(call, result: result)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
     #endif
   }
 
   private func handleSharedCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     if call.method == "setAppGroupId" {
-      guard let args = call.arguments else {
-        return
-      }
-      if let myArgs = args as? [String: Any?],
+      if let myArgs = call.arguments as? [String: Any?],
         let groupId = myArgs["groupId"] as? String
       {
         HomeWidgetPlugin.groupId = groupId
@@ -100,23 +125,30 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         result(notInitializedError)
         return
       }
-      guard let args = call.arguments else {
-        return
-      }
-      if let myArgs = args as? [String: Any?],
+      if let myArgs = call.arguments as? [String: Any?],
         let id = myArgs["id"] as? String,
         let data = myArgs["data"]
       {
-        let preferences = UserDefaults.init(suiteName: resolvedGroupId)
+        guard let preferences = widgetPreferences(for: resolvedGroupId, result: result) else {
+          return
+        }
         // Dart null values in method-channel arguments arrive as NSNull.
-        if data != nil && !(data is NSNull) {
+        if let data = data, !(data is NSNull) {
+          let value: Any
           if let binaryData = data as? FlutterStandardTypedData {
-            preferences?.setValue(Data(binaryData.data), forKey: id)
+            value = Data(binaryData.data)
           } else {
-            preferences?.setValue(data, forKey: id)
+            value = data
           }
+          guard PropertyListSerialization.propertyList(value, isValidFor: .binary) else {
+            result(
+              FlutterError(
+                code: "-1", message: "Widget data must be a property-list value", details: nil))
+            return
+          }
+          preferences.setValue(value, forKey: id)
         } else {
-          preferences?.removeObject(forKey: id)
+          preferences.removeObject(forKey: id)
         }
         result(true)
       } else {
@@ -130,15 +162,14 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         result(notInitializedError)
         return
       }
-      guard let args = call.arguments else {
-        return
-      }
-      if let myArgs = args as? [String: Any?],
+      if let myArgs = call.arguments as? [String: Any?],
         let id = myArgs["id"] as? String,
         let defaultValue = myArgs["defaultValue"]
       {
-        let preferences = UserDefaults.init(suiteName: resolvedGroupId)
-        result(preferences?.value(forKey: id) ?? defaultValue)
+        guard let preferences = widgetPreferences(for: resolvedGroupId, result: result) else {
+          return
+        }
+        result(preferences.value(forKey: id) ?? defaultValue)
       } else {
         result(
           FlutterError(
@@ -517,6 +548,20 @@ extension IntentParameter: _AnyIntentParameter {
         }
       }
       return false
+    }
+  }
+#elseif os(macOS)
+  // MARK: - macOS lifecycle
+
+  extension HomeWidgetPlugin {
+    private static func registerLifecycleDelegates(
+      _ instance: HomeWidgetPlugin, with registrar: FlutterPluginRegistrar
+    ) {
+      guard Bundle.main.bundleURL.pathExtension != "appex" else {
+        return
+      }
+
+      registrar.addApplicationDelegate(instance)
     }
   }
 #endif

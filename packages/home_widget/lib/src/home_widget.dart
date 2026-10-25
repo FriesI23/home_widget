@@ -15,7 +15,7 @@ class HomeWidget {
   static const MethodChannel _channel = MethodChannel('home_widget');
   static const EventChannel _eventChannel = EventChannel('home_widget/updates');
 
-  /// The AppGroupId used for iOS Widgets
+  /// The default AppGroupId used for iOS and macOS Widgets.
   static String? groupId;
 
   /// Save [data] to the Widget Storage
@@ -259,8 +259,12 @@ class HomeWidget {
     return _channel.invokeMethod<T>('getWidgetData', arguments);
   }
 
-  /// Required on iOS to set the AppGroupId [groupId] in order to ensure
-  /// communication between the App and the Widget Extension
+  /// Sets the default App Group for iOS and macOS shared widget data.
+  ///
+  /// Data calls can override this with their per-call `appGroupId`.
+  /// This only records the identifier. On macOS, data access throws a
+  /// [PlatformException] with code `-9` if the process's App Groups entitlement
+  /// does not authorize the resolved group.
   static Future<bool?> setAppGroupId(String groupId) {
     HomeWidget.groupId = groupId;
     return _channel.invokeMethod('setAppGroupId', {'groupId': groupId});
