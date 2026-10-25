@@ -106,7 +106,8 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     #elseif os(macOS)
       // Connect capabilities in reviewable batches; do not report unsupported calls as success.
       switch call.method {
-      case "setAppGroupId", "saveWidgetData", "getWidgetData", "getWidgetContainerPath":
+      case "setAppGroupId", "saveWidgetData", "getWidgetData", "getWidgetContainerPath",
+        "getInstalledWidgets":
         handleSharedCall(call, result: result)
       case "updateWidget", "updateWidgetPreview", "scheduleWidgetUpdates",
         "cancelScheduledWidgetUpdates", "canScheduleExactWidgetUpdates",
@@ -300,166 +301,164 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     } else if call.method == "finishHomeWidgetConfigure" {
       result(nil)
     } else if call.method == "getInstalledWidgets" {
-      if #available(iOS 14.0, *) {
-        #if arch(arm64) || arch(i386) || arch(x86_64)
-          WidgetCenter.shared.getCurrentConfigurations { result2 in
-            switch result2 {
-            case .success(let widgets):
-              let widgetInfoList = widgets.map { widget in
-                var configuration: [String: Any] = [String: Any]()
+      if #available(iOS 14.0, macOS 11.0, *) {
+        WidgetCenter.shared.getCurrentConfigurations { result2 in
+          switch result2 {
+          case .success(let widgets):
+            let widgetInfoList = widgets.map { widget in
+              var configuration: [String: Any] = [String: Any]()
 
-                var intent: Any?
-                if widget.configuration != nil {
-                  intent = widget.configuration
-                } else if #available(iOS 17.0, macOS 14.0, *),
-                  let intentType = HomeWidgetPlugin.configurationLookup[widget.kind]
+              var intent: Any?
+              if widget.configuration != nil {
+                intent = widget.configuration
+              } else if #available(iOS 17.0, macOS 14.0, *),
+                let intentType = HomeWidgetPlugin.configurationLookup[widget.kind]
+              {
+                intent = widget.widgetConfigurationIntent(of: intentType)
+
+              }
+
+              if let intent = intent {
+
+                var intentData: [String: Any?] = [:]
+                if #available(iOS 17.0, macOS 14.0, *),
+                  let configurationIntent = intent as? (any WidgetConfigurationIntent)
                 {
-                  intent = widget.widgetConfigurationIntent(of: intentType)
-
-                }
-
-                if let intent = intent {
-
-                  var intentData: [String: Any?] = [:]
-                  if #available(iOS 17.0, macOS 14.0, *),
-                    let configurationIntent = intent as? (any WidgetConfigurationIntent)
-                  {
-                    let mirror = Mirror(reflecting: configurationIntent)
-                    for (name, value) in mirror.children {
-                      if let name {
-                        intentData[name] = value
-                      }
-                    }
-                  } else if let configurationIntent = intent as? INIntent {
-                    let intentClass: AnyClass = type(of: configurationIntent)
-
-                    var count: UInt32 = 0
-                    if let properties = class_copyPropertyList(intentClass, &count) {
-                      for i in 0..<count {
-                        let property = property_getName(properties[Int(i)])
-                        if let propertyName = String(utf8String: property) {
-
-                          let value = configurationIntent.value(forKey: propertyName)
-                          intentData[propertyName] = value
-                        }
-
-                      }
-                      free(properties)
+                  let mirror = Mirror(reflecting: configurationIntent)
+                  for (name, value) in mirror.children {
+                    if let name {
+                      intentData[name] = value
                     }
                   }
-                  if !intentData.isEmpty {
+                } else if let configurationIntent = intent as? INIntent {
+                  let intentClass: AnyClass = type(of: configurationIntent)
 
-                    for (internalPropertyName, rawValue) in intentData {
-                      let propertyName =
-                        internalPropertyName.hasPrefix("_") == true
-                        ? String(internalPropertyName.dropFirst())
-                        : internalPropertyName
+                  var count: UInt32 = 0
+                  if let properties = class_copyPropertyList(intentClass, &count) {
+                    for i in 0..<count {
+                      let property = property_getName(properties[Int(i)])
+                      if let propertyName = String(utf8String: property) {
 
-                      let value: Any?
-
-                      if let intentParameter = rawValue as? _AnyIntentParameter {
-                        // Get the wrapped value from the IntentParameter. Used for WidgetConfigurationIntent
-                        value = intentParameter.anyWrappedValue
-                      } else {
-                        // Use rawValue if it is not an IntentParameter
-                        value = rawValue
+                        let value = configurationIntent.value(forKey: propertyName)
+                        intentData[propertyName] = value
                       }
-                      switch value {
-                      case is NSNull:
-                        configuration[propertyName] = NSNull()
 
-                      case let boolValue as Bool:
-                        configuration[propertyName] = boolValue
+                    }
+                    free(properties)
+                  }
+                }
+                if !intentData.isEmpty {
 
-                      case let intValue as Int32:
-                        configuration[propertyName] = NSNumber(value: intValue)
+                  for (internalPropertyName, rawValue) in intentData {
+                    let propertyName =
+                      internalPropertyName.hasPrefix("_") == true
+                      ? String(internalPropertyName.dropFirst())
+                      : internalPropertyName
 
-                      case let intValue as Int:
-                        configuration[propertyName] = NSNumber(value: intValue)
+                    let value: Any?
 
-                      case let doubleValue as Double:
-                        configuration[propertyName] = NSNumber(value: doubleValue)
+                    if let intentParameter = rawValue as? _AnyIntentParameter {
+                      // Get the wrapped value from the IntentParameter. Used for WidgetConfigurationIntent
+                      value = intentParameter.anyWrappedValue
+                    } else {
+                      // Use rawValue if it is not an IntentParameter
+                      value = rawValue
+                    }
+                    switch value {
+                    case is NSNull:
+                      configuration[propertyName] = NSNull()
 
-                      case let stringValue as String:
-                        configuration[propertyName] = stringValue
+                    case let boolValue as Bool:
+                      configuration[propertyName] = boolValue
 
-                      case let dataValue as Data:
-                        configuration[propertyName] = FlutterStandardTypedData(bytes: dataValue)
+                    case let intValue as Int32:
+                      configuration[propertyName] = NSNumber(value: intValue)
 
-                      case let arrayValue as [Any]:
-                        configuration[propertyName] = arrayValue
+                    case let intValue as Int:
+                      configuration[propertyName] = NSNumber(value: intValue)
 
-                      case let dictionaryValue as [String: Any]:
-                        configuration[propertyName] = dictionaryValue
+                    case let doubleValue as Double:
+                      configuration[propertyName] = NSNumber(value: doubleValue)
 
-                      case let dateValue as Date:
-                        let dateFormatter = ISO8601DateFormatter()
-                        configuration[propertyName] = dateFormatter.string(from: dateValue)
+                    case let stringValue as String:
+                      configuration[propertyName] = stringValue
 
-                      case let urlValue as URL:
-                        configuration[propertyName] = urlValue.absoluteString
+                    case let dataValue as Data:
+                      configuration[propertyName] = FlutterStandardTypedData(bytes: dataValue)
 
-                      // Handle Codable types by trying to convert to a dictionary
-                      case let codableValue as (any Codable):
-                        let encoder = JSONEncoder()
-                        do {
-                          let data = try encoder.encode(codableValue)
-                          if let jsonObject = try JSONSerialization.jsonObject(
-                            with: data, options: []) as? [String: Any]
-                          {
-                            configuration[propertyName] = jsonObject
-                          }
-                        } catch {
-                          if let value = value {
-                            configuration[propertyName] = "\(value)"
-                          } else {
-                            configuration[propertyName] = nil
-                          }
+                    case let arrayValue as [Any]:
+                      configuration[propertyName] = arrayValue
 
+                    case let dictionaryValue as [String: Any]:
+                      configuration[propertyName] = dictionaryValue
+
+                    case let dateValue as Date:
+                      let dateFormatter = ISO8601DateFormatter()
+                      configuration[propertyName] = dateFormatter.string(from: dateValue)
+
+                    case let urlValue as URL:
+                      configuration[propertyName] = urlValue.absoluteString
+
+                    // Handle Codable types by trying to convert to a dictionary
+                    case let codableValue as (any Codable):
+                      let encoder = JSONEncoder()
+                      do {
+                        let data = try encoder.encode(codableValue)
+                        if let jsonObject = try JSONSerialization.jsonObject(
+                          with: data, options: []) as? [String: Any]
+                        {
+                          configuration[propertyName] = jsonObject
                         }
-
-                      case let inObject as INObject:
-                        configuration[propertyName] = [
-                          "identifier": inObject.identifier,
-                          "displayString": inObject.displayString,
-                        ]
-
-                      default:
+                      } catch {
                         if let value = value {
                           configuration[propertyName] = "\(value)"
                         } else {
                           configuration[propertyName] = nil
                         }
+
+                      }
+
+                    case let inObject as INObject:
+                      configuration[propertyName] = [
+                        "identifier": inObject.identifier,
+                        "displayString": inObject.displayString,
+                      ]
+
+                    default:
+                      if let value = value {
+                        configuration[propertyName] = "\(value)"
+                      } else {
+                        configuration[propertyName] = nil
                       }
                     }
                   }
                 }
-
-                var resultMap: [String: Any] = [
-                  "family": "\(widget.family)",
-                  "kind": widget.kind,
-                ]
-
-                if !configuration.isEmpty {
-                  resultMap["configuration"] = configuration
-                }
-
-                return resultMap
               }
-              result(widgetInfoList)
-            case .failure(let error):
-              result(
-                FlutterError(
-                  code: "-8",
-                  message: "Failed to get installed widgets: \(error.localizedDescription)",
-                  details: nil))
+
+              var resultMap: [String: Any] = [
+                "family": "\(widget.family)",
+                "kind": widget.kind,
+              ]
+
+              if !configuration.isEmpty {
+                resultMap["configuration"] = configuration
+              }
+
+              return resultMap
             }
+            result(widgetInfoList)
+          case .failure(let error):
+            result(
+              FlutterError(
+                code: "-8",
+                message: "Failed to get installed widgets: \(error.localizedDescription)",
+                details: nil))
           }
-        #endif
+        }
       } else {
         result(
           FlutterError(
-            code: "-4", message: "Widgets are only available on iOS 14.0 and above", details: nil)
+            code: "-4", message: "Widgets require iOS 14.0 or macOS 11.0 and above", details: nil)
         )
       }
     } else {

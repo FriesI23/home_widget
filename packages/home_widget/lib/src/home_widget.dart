@@ -594,11 +594,14 @@ class HomeWidget {
     }
   }
 
-  /// On iOS, returns a list of [HomeWidgetInfo] for each type of widget currently installed,
-  /// regardless of the number of instances.
+  /// On iOS and macOS, returns WidgetKit configuration information.
+  /// The historical [HomeWidgetInfo.iOSFamily] and [HomeWidgetInfo.iOSKind]
+  /// fields also describe macOS widgets. The result is not an exact count of
+  /// desktop instances; configurations without available values omit them.
   /// On Android, returns a list of [HomeWidgetInfo] for each instance of each widget
   /// currently pinned on the home screen.
-  /// Returns an empty list if no widgets are pinned.
+  /// Returns an empty list when the platform reports no widgets.
+  /// Platform query errors propagate; they are not converted to an empty list.
   static Future<List<HomeWidgetInfo>> getInstalledWidgets() async {
     final result =
         await _channel.invokeMethod('getInstalledWidgets') as List<dynamic>?;

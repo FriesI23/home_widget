@@ -70,6 +70,7 @@ class _MacOSExampleState extends State<MacOSExample> {
   String? _screenshot;
   String? _token;
   String? _error;
+  List<HomeWidgetInfo>? _widgets;
   bool _busy = true;
 
   @override
@@ -129,6 +130,21 @@ class _MacOSExampleState extends State<MacOSExample> {
     }
   }
 
+  Future<void> _readWidgets() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final widgets = await HomeWidget.getInstalledWidgets();
+      if (mounted) setState(() => _widgets = widgets);
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Widget _preview(String path) => Image.file(
     File(path),
     width: 120,
@@ -145,40 +161,55 @@ class _MacOSExampleState extends State<MacOSExample> {
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.widgets_outlined, size: 48),
-                const SizedBox(height: 16),
-                const Text('Home Widget', style: TextStyle(fontSize: 24)),
-                const SizedBox(height: 12),
-                if (_image != null && _screenshot != null) ...[
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [_preview(_image!), _preview(_screenshot!)],
-                  ),
-                  Text(_token ?? ''),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.widgets_outlined, size: 48),
+                  const SizedBox(height: 16),
+                  const Text('Home Widget', style: TextStyle(fontSize: 24)),
                   const SizedBox(height: 12),
-                ],
-                if (_error != null) Text(_error!),
-                if (_group == null && !_busy)
+                  if (_image != null && _screenshot != null) ...[
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [_preview(_image!), _preview(_screenshot!)],
+                    ),
+                    Text(_token ?? ''),
+                    const SizedBox(height: 12),
+                  ],
+                  if (_error != null) Text(_error!),
+                  if (_group == null && !_busy)
+                    const Text(
+                      'Configure one matching App Group for the app and widget '
+                      'to share images. See the example README.',
+                      textAlign: TextAlign.center,
+                    ),
+                  FilledButton(
+                    onPressed: _busy || _group == null ? null : _save,
+                    child: Text(_busy ? 'Loading…' : 'Save and refresh'),
+                  ),
+                  TextButton(
+                    onPressed: _busy ? null : _readWidgets,
+                    child: const Text('Read widget configurations'),
+                  ),
+                  if (_widgets case final widgets?) ...[
+                    if (widgets.isEmpty) const Text('No widget configurations'),
+                    for (final widget in widgets)
+                      Text(
+                        '${widget.iOSKind} / ${widget.iOSFamily}'
+                        '${widget.configuration == null ? '' : '\n${widget.configuration}'}',
+                        textAlign: TextAlign.center,
+                      ),
+                  ],
+                  const SizedBox(height: 8),
                   const Text(
-                    'Configure one matching App Group for the app and widget '
-                    'to share images. See the example README.',
+                    'Save images, then add HomeWidget macOS from your Mac’s '
+                    'widget gallery. WidgetKit schedules refreshes after saving. '
+                    'Reopen the app to restore saved previews.',
                     textAlign: TextAlign.center,
                   ),
-                FilledButton(
-                  onPressed: _busy || _group == null ? null : _save,
-                  child: Text(_busy ? 'Loading…' : 'Save and refresh'),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Save images, then add HomeWidget macOS from your Mac’s '
-                  'widget gallery. WidgetKit schedules refreshes after saving. '
-                  'Reopen the app to restore saved previews.',
-                  textAlign: TextAlign.center,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

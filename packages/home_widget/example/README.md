@@ -9,8 +9,8 @@ The dedicated macOS entry starts without Workmanager or calls to plugin APIs
 that have not yet been connected on macOS. The macOS Xcode configurations select
 the same entry; keep `--target lib/main_macos.dart` when using Flutter CLI tools.
 The embedded `HomeWidgetExampleExtension` displays shared PNG images and Flutter
-screenshots. Configuration, URLs, and interactive callbacks are connected
-separately.
+screenshots and can query installed widget configurations. URLs and interactive
+callbacks are connected separately.
 
 Open `macos/Runner.xcworkspace` in Xcode and select your signing team for the
 Runner and HomeWidgetExampleExtension targets. Use your own matching bundle
@@ -71,8 +71,32 @@ Android-only APIs keep the iOS compatibility results on macOS: preview updates,
 scheduling/cancellation/exact-scheduling checks and pin-support checks return
 `false`; pin requests, configure-launch queries and configure completion return
 null (the `Future<void>` calls simply complete). They do not emulate Android
-launcher behavior on macOS. Widget configuration, URLs and background callbacks
-remain separate integration steps.
+launcher behavior on macOS. URLs and background callbacks remain separate
+integration steps.
+
+Select **Read widget configurations** to query WidgetKit without requiring an
+App Group. Results use the existing `HomeWidgetInfo.iOSKind` and `iOSFamily`
+fields on both iOS and macOS; they describe configurations, not an exact count
+of desktop instances. Empty results and query errors are shown separately.
+This static example has no editable configuration values.
+
+For a custom AppIntent widget, compile the same `WidgetConfigurationIntent`
+type into the host and extension, then register it in the host before querying:
+
+```swift
+if #available(macOS 14.0, *) {
+  HomeWidgetPlugin.setConfigurationLookup(to: [
+    "YourWidgetKind": YourConfigurationIntent.self
+  ])
+}
+```
+
+Import `home_widget` in that host file. Legacy `INIntent` configuration values
+are read when WidgetKit supplies them. Modern values require the matching
+lookup type on macOS 14 / iOS 17 and later. If no matching type is registered,
+the row still includes kind and family, with no fabricated configuration.
+Existing configuration value conversion is shared with iOS; this does not add
+recursive conversion for arbitrary native values or start a background engine.
 
 The host uses Flutter's macOS 12 deployment target; the Widget target is declared
 for macOS 11. Flutter 3.47.8 raises the Widget build target to macOS 12 during

@@ -1037,6 +1037,67 @@ void main() {
 
   group('getInstalledWidgets', () {
     test(
+      'preserves Darwin field names and optional configuration values',
+      () async {
+        final configuration = <String, dynamic>{
+          'name': 'Mac',
+          'enabled': true,
+          'count': 42,
+          'bytes': Uint8List.fromList([0, 127, 255]),
+          'nested': {
+            'items': ['one', 2],
+          },
+        };
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(
+              channel,
+              (_) async => [
+                {
+                  'family': 'systemMedium',
+                  'kind': 'DarwinConfiguredWidget',
+                  'configuration': configuration,
+                },
+                {'family': 'systemSmall', 'kind': 'DarwinStaticWidget'},
+              ],
+            );
+
+        final widgets = await HomeWidget.getInstalledWidgets();
+        expect(widgets, hasLength(2));
+        expect(widgets.first.iOSKind, 'DarwinConfiguredWidget');
+        expect(widgets.first.iOSFamily, 'systemMedium');
+        expect(widgets.first.configuration, configuration);
+        expect(widgets.first.androidWidgetId, isNull);
+        expect(widgets.last.configuration, isNull);
+      },
+    );
+
+    test('preserves an empty platform configuration list', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (_) async => []);
+      expect(await HomeWidget.getInstalledWidgets(), isEmpty);
+    });
+
+    test(
+      'propagates query errors instead of returning an empty list',
+      () async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (_) async {
+              throw PlatformException(code: '-8', message: 'WidgetKit failed');
+            });
+        expect(
+          HomeWidget.getInstalledWidgets(),
+          throwsA(
+            isA<PlatformException>().having(
+              (error) => error.code,
+              'code',
+              '-8',
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
       'returns a list of HomeWidgetInfo objects when method channel provides data',
       () async {
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
