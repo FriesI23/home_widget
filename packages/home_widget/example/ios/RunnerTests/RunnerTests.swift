@@ -100,6 +100,65 @@ class RunnerTests: XCTestCase {
     }
   }
 
+  func testMissingAppGroupArgumentsCompleteWithExistingError() {
+    let plugin = HomeWidgetPlugin()
+    let inputs: [Any?] = [nil, NSNull(), [:] as [String: Any]]
+    for arguments in inputs {
+      let error = invoke("setAppGroupId", arguments: arguments, on: plugin) as? FlutterError
+      XCTAssertEqual(error?.code, "-6")
+    }
+  }
+
+  func testMissingStorageArgumentsCompleteAndInvalidDataKeepsExistingValue() {
+    let plugin = HomeWidgetPlugin()
+    let group = isolatedSuite()
+    XCTAssertEqual(
+      invoke("setAppGroupId", arguments: ["groupId": group], on: plugin) as? Bool, true)
+    let inputs: [Any?] = [nil, NSNull(), [], [:] as [String: Any]]
+    for (method, code) in [("saveWidgetData", "-1"), ("getWidgetData", "-2")] {
+      for arguments in inputs {
+        XCTAssertEqual(
+          (invoke(method, arguments: arguments, on: plugin) as? FlutterError)?.code, code)
+      }
+    }
+    XCTAssertEqual(
+      invoke("saveWidgetData", arguments: ["id": "value", "data": "keep"], on: plugin) as? Bool,
+      true)
+    let error =
+      invoke(
+        "saveWidgetData", arguments: ["id": "value", "data": ["nested": NSNull()]], on: plugin)
+      as? FlutterError
+    XCTAssertEqual(error?.code, "-1")
+    XCTAssertEqual(UserDefaults(suiteName: group)?.string(forKey: "value"), "keep")
+  }
+
+  func testWidgetContainerPathUsesDefaultAndPerCallGroups() {
+    let plugin = HomeWidgetPlugin()
+    let defaultGroup = "group.homewidget.tests.\(UUID().uuidString)"
+    let otherGroup = "group.homewidget.tests.\(UUID().uuidString)"
+    XCTAssertEqual(
+      invoke("setAppGroupId", arguments: ["groupId": defaultGroup], on: plugin) as? Bool, true)
+    for (arguments, group) in [
+      (nil as Any?, defaultGroup),
+      (["appGroupId": otherGroup], otherGroup),
+      (["appGroupId": NSNull()], defaultGroup),
+    ] {
+      let value = invoke("getWidgetContainerPath", arguments: arguments, on: plugin)
+      if let container = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier: group)
+      {
+        XCTAssertEqual(value as? String, container.path)
+      } else {
+        let error = value as? FlutterError
+        XCTAssertEqual(error?.code, "-10")
+        XCTAssertEqual(error?.details as? String, group)
+      }
+    }
+    XCTAssertEqual(
+      invoke("getWidgetContainerPath", on: plugin) as? String,
+      FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: defaultGroup)?.path)
+  }
+
   func testInstalledWidgetQueryCompletesWithChannelEncodableRows() {
     let completed = expectation(description: "WidgetKit configurations")
     completed.assertForOverFulfill = true
@@ -120,6 +179,28 @@ class RunnerTests: XCTestCase {
       completed.fulfill()
     }
     wait(for: [completed], timeout: 10)
+  }
+
+  func testWidgetRefreshNamesAndMalformedArgumentsCompleteOnce() {
+    let plugin = HomeWidgetPlugin()
+    let kind = "HomeWidgetRefreshTests.\(UUID().uuidString)"
+    let invalid: [Any?] = [
+      nil, NSNull(), [], [:], ["ios": NSNull()], ["ios": 42, "name": false],
+    ]
+    for arguments in invalid {
+      let error = invoke("updateWidget", arguments: arguments, on: plugin) as? FlutterError
+      XCTAssertEqual(error?.code, "-3")
+    }
+    let valid: [[String: Any]] = [
+      ["ios": kind, "name": "ignored"],
+      ["ios": NSNull(), "name": kind],
+      ["ios": 42, "name": kind],
+      ["name": kind],
+      ["ios": "", "name": kind],
+    ]
+    for arguments in valid {
+      XCTAssertEqual(invoke("updateWidget", arguments: arguments, on: plugin) as? Bool, true)
+    }
   }
 
   func testUnsupportedMethodsKeepIOSReturnValues() {
