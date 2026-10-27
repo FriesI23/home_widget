@@ -5,7 +5,7 @@ description: Build Interactive Widgets that call Flutter Code from Native Widget
 
 # Interactive Widgets
 
-Android and iOS (starting with iOS 17) allow widgets to have interactive Elements like Buttons.
+Android, iOS (starting with iOS 17) and macOS (starting with macOS 14) allow widgets to have interactive Elements like Buttons.
 Using home_widget you can register Dart Callbacks that get invoked from the Native Widgets so you only have to write that logic once.
 
 <center>
@@ -28,6 +28,10 @@ Using home_widget you can register Dart Callbacks that get invoked from the Nati
     ```dart
     HomeWidget.registerInteractivityCallback(backgroundCallback);
     ```
+
+## macOS Setup
+
+For macOS, follow the [Interactive Widgets setup](/setup/macos#interactive-widgets) to register the callback in your app.
 
 ## iOS Setup
 
