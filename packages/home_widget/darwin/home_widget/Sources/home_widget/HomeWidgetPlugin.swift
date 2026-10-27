@@ -27,6 +27,9 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
 
   #if os(macOS)
     private var macOSLaunching = false
+    private var macOSGroupId: String?
+    private var backgroundAppGroup: String?
+    private weak var backgroundEngine: FlutterEngine?
   #endif
 
   private var initialUrl: URL?
@@ -53,24 +56,22 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     {
       return appGroupId
     }
-    return HomeWidgetPlugin.groupId
+    return defaultAppGroupId
+  }
+
+  private static var isRunningInAppExtension: Bool {
+    Bundle.main.bundleURL.pathExtension == "appex"
   }
 
   private func isAppGroupAuthorized(_ appGroupId: String, result: FlutterResult) -> Bool {
-    #if os(macOS)
-      // A suite can be created even when the process cannot access the shared group.
-      guard let task = SecTaskCreateFromSelf(nil),
-        let groups = SecTaskCopyValueForEntitlement(
-          task, "com.apple.security.application-groups" as CFString, nil) as? [String],
-        groups.contains(appGroupId)
-      else {
-        result(
-          FlutterError(
-            code: "-9", message: "App Group is not authorized by this process's entitlement",
-            details: appGroupId))
-        return false
-      }
-    #endif
+    guard Self.isAppGroupAuthorized(appGroupId)
+    else {
+      result(
+        FlutterError(
+          code: "-9", message: "App Group is not authorized by this process's entitlement",
+          details: appGroupId))
+      return false
+    }
     return true
   }
 
@@ -90,11 +91,7 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   public static func register(with registrar: FlutterPluginRegistrar) {
     let instance = HomeWidgetPlugin()
 
-    #if os(iOS)
-      let messenger = registrar.messenger()
-    #elseif os(macOS)
-      let messenger = registrar.messenger
-    #endif
+    let messenger = instance.prepareForRegistration(with: registrar)
     let channel = FlutterMethodChannel(name: "home_widget", binaryMessenger: messenger)
     registrar.addMethodCallDelegate(instance, channel: channel)
 
@@ -105,32 +102,11 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-    #if os(iOS)
-      handleSharedCall(call, result: result)
-    #elseif os(macOS)
-      // Connect capabilities in reviewable batches; do not report unsupported calls as success.
-      switch call.method {
-      case "setAppGroupId", "saveWidgetData", "getWidgetData", "getWidgetContainerPath",
-        "getInstalledWidgets", "initiallyLaunchedFromHomeWidget":
-        handleSharedCall(call, result: result)
-      case "updateWidget", "updateWidgetPreview", "scheduleWidgetUpdates",
-        "cancelScheduledWidgetUpdates", "canScheduleExactWidgetUpdates",
-        "isRequestPinWidgetSupported",
-        "requestPinWidget", "initiallyLaunchedFromHomeWidgetConfigure", "finishHomeWidgetConfigure":
-        handleSharedCall(call, result: result)
-      default:
-        result(FlutterMethodNotImplemented)
-      }
-    #endif
-  }
-
-  private func handleSharedCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     if call.method == "setAppGroupId" {
       if let myArgs = call.arguments as? [String: Any?],
         let groupId = myArgs["groupId"] as? String
       {
-        HomeWidgetPlugin.groupId = groupId
-        result(true)
+        setAppGroupId(groupId, result: result)
       } else {
         result(
           FlutterError(
@@ -269,33 +245,7 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     } else if call.method == "initiallyLaunchedFromHomeWidget" {
       result(initialUrl?.absoluteString)
     } else if call.method == "registerBackgroundCallback" {
-      if HomeWidgetPlugin.groupId == nil {
-        result(notInitializedError)
-        return
-      }
-      #if os(iOS)
-        if #available(iOS 17.0, *) {
-          let callbackHandles = call.arguments as! [Int64]
-          let dispatcher = callbackHandles[0]
-          let callback = callbackHandles[1]
-          let preferences = UserDefaults.init(suiteName: HomeWidgetPlugin.groupId)
-          preferences?.setValue(dispatcher, forKey: HomeWidgetBackgroundWorker.dispatcherKey)
-          preferences?.setValue(callback, forKey: HomeWidgetBackgroundWorker.callbackKey)
-          HomeWidgetBackgroundWorker.setupEngine(dispatcher: dispatcher)
-
-          result(true)
-          return
-        } else {
-          result(
-            FlutterError(
-              code: "-5",
-              message:
-                "Interactivity is only available on iOS 17.0",
-              details: nil))
-        }
-      #else
-        result(FlutterMethodNotImplemented)
-      #endif
+      registerBackgroundCallback(call, result: result)
     } else if call.method == "isRequestPinWidgetSupported" {
       result(false)
     } else if call.method == "requestPinWidget" {
@@ -513,13 +463,60 @@ extension IntentParameter: _AnyIntentParameter {
 }
 
 #if os(iOS)
-  // MARK: - iOS lifecycle
+  // MARK: - iOS
 
   extension HomeWidgetPlugin: FlutterSceneLifeCycleDelegate {
+    private var defaultAppGroupId: String? {
+      return HomeWidgetPlugin.groupId
+    }
+
+    private func prepareForRegistration(
+      with registrar: FlutterPluginRegistrar
+    ) -> FlutterBinaryMessenger {
+      return registrar.messenger()
+    }
+
+    private static func isAppGroupAuthorized(_ appGroupId: String) -> Bool {
+      return true
+    }
+
+    private func setAppGroupId(_ groupId: String, result: FlutterResult) {
+      HomeWidgetPlugin.groupId = groupId
+      result(true)
+    }
+
+    private func registerBackgroundCallback(
+      _ call: FlutterMethodCall, result: @escaping FlutterResult
+    ) {
+      if HomeWidgetPlugin.groupId == nil {
+        result(notInitializedError)
+        return
+      }
+      if #available(iOS 17.0, *) {
+        let callbackHandles = call.arguments as! [Int64]
+        let dispatcher = callbackHandles[0]
+        let callback = callbackHandles[1]
+        let preferences = UserDefaults.init(suiteName: HomeWidgetPlugin.groupId)
+        preferences?.setValue(dispatcher, forKey: HomeWidgetBackgroundWorker.dispatcherKey)
+        preferences?.setValue(callback, forKey: HomeWidgetBackgroundWorker.callbackKey)
+        HomeWidgetBackgroundWorker.setupEngine(dispatcher: dispatcher)
+
+        result(true)
+        return
+      } else {
+        result(
+          FlutterError(
+            code: "-5",
+            message:
+              "Interactivity is only available on iOS 17.0",
+            details: nil))
+      }
+    }
+
     private static func registerLifecycleDelegates(
       _ instance: HomeWidgetPlugin, with registrar: FlutterPluginRegistrar
     ) {
-      guard Bundle.main.bundleURL.pathExtension != "appex" else {
+      guard !Self.isRunningInAppExtension else {
         return
       }
 
@@ -579,13 +576,94 @@ extension IntentParameter: _AnyIntentParameter {
     }
   }
 #elseif os(macOS)
-  // MARK: - macOS lifecycle
+  // MARK: - macOS
 
   extension HomeWidgetPlugin {
+    private var defaultAppGroupId: String? {
+      return macOSGroupId
+    }
+
+    private func prepareForRegistration(
+      with registrar: FlutterPluginRegistrar
+    ) -> FlutterBinaryMessenger {
+      let messenger = registrar.messenger
+      if let background = HomeWidgetBackgroundWorker.backgroundEngine(for: messenger) {
+        backgroundAppGroup = background.appGroup
+        backgroundEngine = background.engine
+        macOSGroupId = background.appGroup
+      }
+      return messenger
+    }
+
+    static func isAppGroupAuthorized(_ appGroupId: String) -> Bool {
+      // A suite can be created even when the process cannot access the shared group.
+      guard let task = SecTaskCreateFromSelf(nil),
+        let groups = SecTaskCopyValueForEntitlement(
+          task, "com.apple.security.application-groups" as CFString, nil) as? [String]
+      else { return false }
+      return groups.contains(appGroupId)
+    }
+
+    private func setAppGroupId(_ groupId: String, result: FlutterResult) {
+      if let backgroundGroup = backgroundAppGroup, backgroundGroup != groupId {
+        result(
+          FlutterError(code: "-11", message: "Background App Group cannot change", details: nil)
+        )
+        return
+      }
+      macOSGroupId = groupId
+      result(true)
+    }
+
+    private func registerBackgroundCallback(
+      _ call: FlutterMethodCall, result: @escaping FlutterResult
+    ) {
+      guard let group = macOSGroupId else {
+        result(notInitializedError)
+        return
+      }
+      guard let preferences = widgetPreferences(for: group, result: result) else { return }
+      guard let handles = HomeWidgetBackgroundWorker.callbackHandles(call.arguments)
+      else {
+        result(
+          FlutterError(
+            code: "-6", message: "Expected dispatcher and callback handles", details: nil))
+        return
+      }
+      guard !Self.isRunningInAppExtension else {
+        result(
+          FlutterError(
+            code: "-11", message: "Background execution belongs to the host app", details: nil))
+        return
+      }
+      if backgroundAppGroup != nil {
+        guard let backgroundEngine,
+          HomeWidgetBackgroundWorker.isCurrentBackgroundEngine(backgroundEngine, handles: handles)
+        else {
+          result(
+            FlutterError(
+              code: "-11", message: "Background callback registration is stale or mismatched",
+              details: nil))
+          return
+        }
+      } else {
+        guard HomeWidgetBackgroundWorker.setupEngine(appGroup: group, handles: handles) else {
+          result(
+            FlutterError(
+              code: "-11", message: "Background engine could not start or is busy", details: nil))
+          return
+        }
+        preferences.set(handles[0], forKey: HomeWidgetBackgroundWorker.dispatcherKey)
+        preferences.set(handles[1], forKey: HomeWidgetBackgroundWorker.callbackKey)
+      }
+      result(true)
+    }
+
     private static func registerLifecycleDelegates(
       _ instance: HomeWidgetPlugin, with registrar: FlutterPluginRegistrar
     ) {
-      guard Bundle.main.bundleURL.pathExtension != "appex" else {
+      guard instance.backgroundAppGroup == nil, !Self.isRunningInAppExtension
+      else {
         return
       }
 

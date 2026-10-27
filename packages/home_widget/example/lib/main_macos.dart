@@ -8,6 +8,25 @@ import 'package:home_widget/home_widget.dart';
 
 void main() => runApp(const MacOSExample());
 
+/// The macOS embedder resolves named entrypoints only in this root library.
+@pragma('vm:entry-point')
+Future<void> homeWidgetBackgroundMain() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await HomeWidget.registerInteractivityCallback(macOSBackgroundCallback);
+  await callbackDispatcher();
+}
+
+@pragma('vm:entry-point')
+Future<void> macOSBackgroundCallback(Uri? uri) async {
+  if (uri?.host != 'increment') return;
+  final count =
+      await HomeWidget.getWidgetData<int>('example_counter', defaultValue: 0) ??
+      0;
+  await HomeWidget.saveWidgetData('example_counter', count + 1);
+  await HomeWidget.saveWidgetData('example_callback_uri', uri.toString());
+  await HomeWidget.updateWidget(name: 'HomeWidgetMacOSExample');
+}
+
 /// Saves an ImageProvider and a Flutter screenshot through the public APIs.
 Future<String> saveMacOSExampleImages(String group) async {
   await HomeWidget.setAppGroupId(group);
@@ -131,6 +150,7 @@ class _MacOSExampleState extends State<MacOSExample> {
       _group = await _configuration.invokeMethod<String>('appGroupId');
       if (_group != null) {
         await HomeWidget.setAppGroupId(_group!);
+        await HomeWidget.registerInteractivityCallback(macOSBackgroundCallback);
         await _readImages();
       }
     } catch (error) {

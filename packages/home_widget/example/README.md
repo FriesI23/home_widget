@@ -126,3 +126,36 @@ Flutter SDKs or prove that the example runs on macOS 11.
 
 See Apple's [widget extension guide](https://developer.apple.com/documentation/widgetkit/creating-a-widget-extension)
 for the WidgetKit target and configuration model.
+
+### macOS background buttons
+
+On macOS 14+, the widget's counter button runs `BackgroundIntent` in the host
+without requesting foreground activation. Add the intent source to both targets;
+only the host adds `ForegroundContinuableIntent` conformance and imports
+`home_widget`. Keep `WIDGET_EXTENSION` defined for the extension. Flutter and
+business plugins belong to the host, and the extension must not link them.
+
+Configure the same authorized App Group for both targets, open the app once, and
+register the callback after `HomeWidget.setAppGroupId`. The host must also call
+`HomeWidgetBackgroundWorker.setPluginRegistrantCallback` to register
+`home_widget` and any other plugins needed by the callback in each background
+engine. This example uses `RegisterGeneratedPlugins`.
+
+The macOS embedder resolves named Dart entrypoints in the selected root library.
+Keep this wrapper in `lib/main_macos.dart` (or your own build's root entry file),
+with a top-level callback retained for Release:
+
+```dart
+@pragma('vm:entry-point')
+Future<void> homeWidgetBackgroundMain() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await HomeWidget.registerInteractivityCallback(macOSBackgroundCallback);
+  await callbackDispatcher();
+}
+```
+
+The wrapper re-registers the same business callback to restore the cold isolate's
+callback handle map. Native code establishes that engine's App Group before Dart
+starts. Keep UI startup and unrelated app initialization in `main()`, outside this
+wrapper. Re-register from the app after changing the callback or installing a new
+build; stored handles are not portable between builds.

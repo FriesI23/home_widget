@@ -8,6 +8,8 @@ private struct HomeWidgetEntry: TimelineEntry {
   var image: Data?
   var screenshot: Data?
   var token: String?
+  var group: String?
+  var counter = 0
 }
 
 private struct Provider: TimelineProvider {
@@ -21,6 +23,8 @@ private struct Provider: TimelineProvider {
     else {
       return entry
     }
+    entry.group = group
+    entry.counter = defaults.integer(forKey: "example_counter")
     if let path = defaults.string(forKey: "example_image") {
       entry.image = try? Data(contentsOf: URL(fileURLWithPath: path))
     }
@@ -71,6 +75,15 @@ private struct HomeWidgetView: View {
       } else {
         Image(systemName: "rectangle.3.group").font(.title)
         Text("Ready")
+      }
+      if #available(macOS 14.0, *), let group = entry.group {
+        Button(
+          intent: BackgroundIntent(
+            url: URL(string: "homewidget-macos://increment"), appGroup: group)
+        ) {
+          Label("Count: \(entry.counter)", systemImage: "plus")
+        }
+        .buttonStyle(.plain)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)

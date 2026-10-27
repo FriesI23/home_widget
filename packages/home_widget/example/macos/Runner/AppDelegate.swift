@@ -19,6 +19,9 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   override func applicationWillFinishLaunching(_ notification: Notification) {
+    HomeWidgetBackgroundWorker.setPluginRegistrantCallback { registry in
+      RegisterGeneratedPlugins(registry: registry)
+    }
     super.applicationWillFinishLaunching(notification)
     willLaunch = notification
   }
