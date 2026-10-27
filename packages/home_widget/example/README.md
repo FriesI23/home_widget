@@ -2,15 +2,17 @@
 
 Demonstrates how to use the home_widget plugin.
 
-## macOS shared images example
+## macOS example
 
 Run this example with `flutter run -d macos --target lib/main_macos.dart`.
-The dedicated macOS entry starts without Workmanager or calls to plugin APIs
-that have not yet been connected on macOS. The macOS Xcode configurations select
+The dedicated macOS entry starts without Workmanager. The macOS Xcode configurations select
 the same entry; keep `--target lib/main_macos.dart` when using Flutter CLI tools.
-The embedded `HomeWidgetExampleExtension` displays shared PNG images and Flutter
-screenshots, queries installed widget configurations, and handles Widget URLs.
-Interactive callbacks are connected separately.
+The embedded `HomeWidgetExampleExtension` displays shared data, PNG images and
+Flutter screenshots, handles Widget URLs and runs background counter buttons.
+The app reads shared data and installed widget configurations.
+
+Build a Release app with
+`flutter build macos --release --target lib/main_macos.dart`.
 
 Open `macos/Runner.xcworkspace` in Xcode and select your signing team for the
 Runner and HomeWidgetExampleExtension targets. Use your own matching bundle
@@ -27,8 +29,9 @@ orange circle and a teal Flutter screenshot. Then add **HomeWidget macOS** from
 Notification Center or, on macOS 14 and later, the desktop widget gallery. The
 widget displays the same images and token. Reopen the app to restore its saved
 previews. The provider reads persisted paths on snapshot/timeline creation.
-Saving calls `HomeWidget.updateWidget(name: 'HomeWidgetMacOSExample')` after the
-image paths and token have been written. You can update the existing widget
+Saving requests a refresh of both `HomeWidgetMacOSExample` and
+`HomeWidgetMacOSConfigurableExample` after the image paths and token have been
+written. You can update the existing widget
 without removing it. WidgetKit schedules the actual refresh; a successful
 request does not promise an immediate redraw.
 
@@ -43,7 +46,7 @@ requested default, and typed byte data is stored as `Data`.
 `PlatformException` code `-9` if the resolved group is absent from the current
 process's App Groups entitlement or its preferences are unavailable. It does
 not fall back to private storage. The unconfigured example remains usable without an
-App Group; configuration and interaction UI are added separately.
+App Group; URLs and configuration queries do not require shared storage.
 
 `saveFile`, `saveImage`, and `renderFlutterWidget` now resolve the App Group
 container through the plugin on both iOS and macOS. Files keep the layout
@@ -71,17 +74,22 @@ Android-only APIs keep the iOS compatibility results on macOS: preview updates,
 scheduling/cancellation/exact-scheduling checks and pin-support checks return
 `false`; pin requests, configure-launch queries and configure completion return
 null (the `Future<void>` calls simply complete). They do not emulate Android
-launcher behavior on macOS. Background callbacks remain a separate integration
-step.
+launcher behavior on macOS.
 
 Select **Read widget configurations** to query WidgetKit without requiring an
 App Group. Results use the existing `HomeWidgetInfo.iOSKind` and `iOSFamily`
 fields on both iOS and macOS; they describe configurations, not an exact count
 of desktop instances. Empty results and query errors are shown separately.
-This static example has no editable configuration values.
+On macOS 14+, also add **HomeWidget macOS Configurable**. Open **Edit Widget**,
+change **Name**, then select **Read widget configurations** in the app. The
+configuration contains the edited name. Both widgets share the same images and
+counter; the original **HomeWidget macOS** remains a static configuration.
+Select **Read shared data** after using either Count button to update the app's
+copy of the counter.
 
-For a custom AppIntent widget, compile the same `WidgetConfigurationIntent`
-type into the host and extension, then register it in the host before querying:
+The example compiles [HomeWidgetConfiguration](macos/Runner/WidgetConfiguration.swift)
+into both the host and extension and registers its lookup in AppDelegate before
+querying. For a custom AppIntent widget, use the same arrangement:
 
 ```swift
 if #available(macOS 14.0, *) {
@@ -159,3 +167,9 @@ callback handle map. Native code establishes that engine's App Group before Dart
 starts. Keep UI startup and unrelated app initialization in `main()`, outside this
 wrapper. Re-register from the app after changing the callback or installing a new
 build; stored handles are not portable between builds.
+
+Business callbacks must manage their own concurrency and complete their returned
+Future. The package forwards each request and waits for that Future; it does not
+serialize, cancel or retry business operations. Widget execution and refresh are
+scheduled by macOS, so keep background work short and do not rely on an
+unlimited execution time or identical behavior after every termination state.

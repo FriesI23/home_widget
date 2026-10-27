@@ -27,9 +27,11 @@
 		33CC10F62044A3C60003C045 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F42044A3C60003C045 /* MainMenu.xib */; };
 		33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC11122044BFA00003C045 /* MainFlutterWindow.swift */; };
 		428E97C091E51E211F6C07C2 /* BackgroundIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 086185B0BB4539ECEE7DBECE /* BackgroundIntent.swift */; };
+		439A7088232B68DED1F8B94E /* WidgetConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ED6482797F7F461EA552BA3 /* WidgetConfiguration.swift */; };
 		4E48AAF63288B2E5D8F6996D /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8DFCA0BB23B89C53524130D7 /* Cocoa.framework */; };
 		57DBC531DF9BDDE16469536E /* HomeWidgetExampleExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = FA9D8E86740CB4D80D5FB25F /* HomeWidgetExampleExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
+		A55DFA25238C2BE0FD2F1550 /* WidgetConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ED6482797F7F461EA552BA3 /* WidgetConfiguration.swift */; };
 		D1E66A1B5D4235E08291BCDC /* HomeWidgetExample.swift in Sources */ = {isa = PBXBuildFile; fileRef = 973EC20FA6D84E879074E5A3 /* HomeWidgetExample.swift */; };
 		F1B100823D110F85079E5E43 /* BackgroundIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 086185B0BB4539ECEE7DBECE /* BackgroundIntent.swift */; };
 /* End PBXBuildFile section */
@@ -78,6 +80,7 @@
 /* Begin PBXFileReference section */
 		086185B0BB4539ECEE7DBECE /* BackgroundIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BackgroundIntent.swift; sourceTree = "<group>"; };
 		1413D8F289C7F05F711B0B3C /* HomeWidgetExample.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = HomeWidgetExample.entitlements; sourceTree = "<group>"; };
+		2ED6482797F7F461EA552BA3 /* WidgetConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetConfiguration.swift; sourceTree = "<group>"; };
 		333000ED22D3DE5D00554162 /* Warnings.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Warnings.xcconfig; sourceTree = "<group>"; };
 		335BBD1A22A9A15E00E9071D /* GeneratedPluginRegistrant.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GeneratedPluginRegistrant.swift; sourceTree = "<group>"; };
 		33CC10ED2044A3C60003C045 /* HomeWidget Example.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "HomeWidget Example.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -185,6 +188,7 @@
 				33CC11242044D66E0003C045 /* Resources */,
 				33BA886A226E78AF003329D5 /* Configs */,
 				086185B0BB4539ECEE7DBECE /* BackgroundIntent.swift */,
+				2ED6482797F7F461EA552BA3 /* WidgetConfiguration.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -380,6 +384,7 @@
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,
 				428E97C091E51E211F6C07C2 /* BackgroundIntent.swift in Sources */,
+				A55DFA25238C2BE0FD2F1550 /* WidgetConfiguration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -389,6 +394,7 @@
 			files = (
 				D1E66A1B5D4235E08291BCDC /* HomeWidgetExample.swift in Sources */,
 				F1B100823D110F85079E5E43 /* BackgroundIntent.swift in Sources */,
+				439A7088232B68DED1F8B94E /* WidgetConfiguration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

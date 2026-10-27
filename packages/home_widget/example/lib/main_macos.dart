@@ -24,7 +24,12 @@ Future<void> macOSBackgroundCallback(Uri? uri) async {
       0;
   await HomeWidget.saveWidgetData('example_counter', count + 1);
   await HomeWidget.saveWidgetData('example_callback_uri', uri.toString());
+  await _refreshMacOSWidgets();
+}
+
+Future<void> _refreshMacOSWidgets() async {
   await HomeWidget.updateWidget(name: 'HomeWidgetMacOSExample');
+  await HomeWidget.updateWidget(name: 'HomeWidgetMacOSConfigurableExample');
 }
 
 /// Saves an ImageProvider and a Flutter screenshot through the public APIs.
@@ -70,9 +75,9 @@ Future<String> saveMacOSExampleImages(String group) async {
     pixelRatio: 1,
     appGroupId: group,
   );
-  final token = 'C2-${DateTime.now().millisecondsSinceEpoch}';
+  final token = 'Example-${DateTime.now().millisecondsSinceEpoch}';
   await HomeWidget.saveWidgetData('example_token', token, appGroupId: group);
-  await HomeWidget.updateWidget(name: 'HomeWidgetMacOSExample');
+  await _refreshMacOSWidgets();
   return token;
 }
 
@@ -89,6 +94,7 @@ class _MacOSExampleState extends State<MacOSExample> {
   String? _image;
   String? _screenshot;
   String? _token;
+  int _counter = 0;
   String? _error;
   List<HomeWidgetInfo>? _widgets;
   StreamSubscription<Uri?>? _urlSubscription;
@@ -135,11 +141,17 @@ class _MacOSExampleState extends State<MacOSExample> {
       'example_token',
       appGroupId: _group,
     );
+    final counter = await HomeWidget.getWidgetData<int>(
+      'example_counter',
+      defaultValue: 0,
+      appGroupId: _group,
+    );
     if (mounted) {
       setState(() {
         _image = image;
         _screenshot = screenshot;
         _token = token;
+        _counter = counter ?? 0;
       });
     }
   }
@@ -183,6 +195,20 @@ class _MacOSExampleState extends State<MacOSExample> {
     try {
       final widgets = await HomeWidget.getInstalledWidgets();
       if (mounted) setState(() => _widgets = widgets);
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _readSharedData() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await _readImages();
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
@@ -234,6 +260,11 @@ class _MacOSExampleState extends State<MacOSExample> {
                     child: Text(_busy ? 'Loading…' : 'Save and refresh'),
                   ),
                   TextButton(
+                    onPressed: _busy || _group == null ? null : _readSharedData,
+                    child: const Text('Read shared data'),
+                  ),
+                  Text('Widget counter: $_counter'),
+                  TextButton(
                     onPressed: _busy ? null : _readWidgets,
                     child: const Text('Read widget configurations'),
                   ),
@@ -251,9 +282,11 @@ class _MacOSExampleState extends State<MacOSExample> {
                   ],
                   const SizedBox(height: 8),
                   const Text(
-                    'Save images, then add HomeWidget macOS from your Mac’s '
-                    'widget gallery. WidgetKit schedules refreshes after saving. '
-                    'Reopen the app to restore saved previews.',
+                    'Add HomeWidget macOS from your Mac’s widget gallery. '
+                    'On macOS 14+, try HomeWidget macOS Configurable and edit '
+                    'its Name, then read its configuration here. '
+                    'Click Count in either widget, then read shared data '
+                    'to see the updated counter.',
                     textAlign: TextAlign.center,
                   ),
                 ],

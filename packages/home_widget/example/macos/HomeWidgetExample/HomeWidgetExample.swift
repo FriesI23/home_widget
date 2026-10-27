@@ -5,6 +5,7 @@ import WidgetKit
 
 private struct HomeWidgetEntry: TimelineEntry {
   let date: Date
+  var name = "Home Widget"
   var image: Data?
   var screenshot: Data?
   var token: String?
@@ -13,8 +14,9 @@ private struct HomeWidgetEntry: TimelineEntry {
 }
 
 private struct Provider: TimelineProvider {
-  private func entry() -> HomeWidgetEntry {
+  func entry(name: String = "Home Widget") -> HomeWidgetEntry {
     var entry = HomeWidgetEntry(date: Date())
+    entry.name = name
     guard let task = SecTaskCreateFromSelf(nil),
       let groups = SecTaskCopyValueForEntitlement(
         task, "com.apple.security.application-groups" as CFString, nil) as? [String],
@@ -60,8 +62,8 @@ private struct HomeWidgetView: View {
   }
 
   private var content: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("Home Widget").font(.headline)
+    VStack(alignment: .leading, spacing: 6) {
+      Text(entry.name).font(.headline).lineLimit(1)
       if let data = entry.image, let image = NSImage(data: data),
         let screenshotData = entry.screenshot, let screenshot = NSImage(data: screenshotData)
       {
@@ -70,7 +72,6 @@ private struct HomeWidgetView: View {
           Image(nsImage: screenshot).resizable().scaledToFit()
         }
         .frame(height: 60)
-        Text("Images ready").font(.caption)
         Text(entry.token ?? "").font(.caption2).lineLimit(1)
       } else {
         Image(systemName: "rectangle.3.group").font(.title)
@@ -91,14 +92,57 @@ private struct HomeWidgetView: View {
   }
 }
 
-@main
 struct HomeWidgetExample: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: "HomeWidgetMacOSExample", provider: Provider()) { entry in
       HomeWidgetView(entry: entry)
     }
     .configurationDisplayName("HomeWidget macOS")
-    .description("Shared image and Flutter screenshot example.")
+    .description("Shared data, images, links and background buttons.")
     .supportedFamilies([.systemSmall, .systemMedium])
+  }
+}
+
+@available(macOS 14.0, *)
+private struct ConfigurableProvider: AppIntentTimelineProvider {
+  func placeholder(in context: Context) -> HomeWidgetEntry {
+    HomeWidgetEntry(date: Date())
+  }
+
+  func snapshot(for configuration: HomeWidgetConfiguration, in context: Context) async
+    -> HomeWidgetEntry
+  {
+    Provider().entry(name: configuration.name)
+  }
+
+  func timeline(for configuration: HomeWidgetConfiguration, in context: Context) async
+    -> Timeline<HomeWidgetEntry>
+  {
+    Timeline(entries: [await snapshot(for: configuration, in: context)], policy: .never)
+  }
+}
+
+@available(macOS 14.0, *)
+struct HomeWidgetConfigurableExample: Widget {
+  var body: some WidgetConfiguration {
+    AppIntentConfiguration(
+      kind: "HomeWidgetMacOSConfigurableExample", intent: HomeWidgetConfiguration.self,
+      provider: ConfigurableProvider()
+    ) { entry in
+      HomeWidgetView(entry: entry)
+    }
+    .configurationDisplayName("HomeWidget macOS Configurable")
+    .description("Edit the name and read it back in Flutter.")
+    .supportedFamilies([.systemSmall, .systemMedium])
+  }
+}
+
+@main
+struct HomeWidgetExampleBundle: WidgetBundle {
+  var body: some Widget {
+    HomeWidgetExample()
+    if #available(macOS 14.0, *) {
+      HomeWidgetConfigurableExample()
+    }
   }
 }

@@ -19,6 +19,11 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   override func applicationWillFinishLaunching(_ notification: Notification) {
+    if #available(macOS 14.0, *) {
+      HomeWidgetPlugin.setConfigurationLookup(to: [
+        "HomeWidgetMacOSConfigurableExample": HomeWidgetConfiguration.self
+      ])
+    }
     HomeWidgetBackgroundWorker.setPluginRegistrantCallback { registry in
       RegisterGeneratedPlugins(registry: registry)
     }
